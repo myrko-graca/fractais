@@ -1,0 +1,80 @@
+<html>
+<head>
+	<script type='text/javascript' src='https://code.createjs.com/easeljs-0.8.2.min.js'></script>
+	<script type='text/javascript' src='https://code.createjs.com/tweenjs-0.6.2.min.js'></script>
+	<script type='text/javascript' src='https://rawgit.com/antimatter15/jsgif/master/LZWEncoder.js'></script>
+	<script type='text/javascript' src='https://rawgit.com/antimatter15/jsgif/master/NeuQuant.js'></script>
+	<script type='text/javascript' src='https://rawgit.com/antimatter15/jsgif/master/GIFEncoder.js'></script>
+	<script type='text/javascript' src='https://rawgit.com/antimatter15/jsgif/master/b64.js'></script>
+</head>
+<style>
+	canvas {
+	  display: block;
+	  margin: 3em auto;
+	  border: 10px solid gainsboro;
+	  background-color: white;
+	}
+
+	img {
+	  display: block;
+	  margin: 3em auto;
+	}
+
+	body {
+	  background-color: whitesmoke;
+	}
+</style>
+<script>
+function teste() {
+	const image = document.querySelector('img');
+	const stage = new createjs.Stage('stage');
+	const circle = new createjs.Shape();
+	circle.graphics.beginFill('deepskyblue').drawCircle(0, 0, 100);
+	circle.x = 250;
+	circle.y = 250;
+	stage.addChild(circle);
+
+	const encoder = new GIFEncoder();
+	encoder.setRepeat(0);
+	encoder.setDelay(1000/2);
+
+	function startRecording() {
+	  if (encoder.hasFinished) return;
+	  encoder.start();
+	}
+
+	function stopRecording() {
+	  if (encoder.hasFinished) return;
+	  encoder.finish();    //a
+	  encoder.hasFinished = true;
+	  const stream = encoder.stream();
+	  const data = stream.getData();
+	  image.src = 'data:image/gif;base64,' + encode64(data);
+	}
+
+	createjs.Tween.get(circle, { loop: true })
+	  .call(startRecording)
+	  .to({ scaleX: 1.5, scaleY: 1.5, alpha: 0 }, 5 * 1000)
+	  .to({ scaleX: 1, scaleY: 1, alpha: 1 }, 5 * 1000)
+	  .to({ x: 400 }, 1000, createjs.Ease.getPowInOut(4))
+	  // .to({ alpha: 0, y: 175 }, 500, createjs.Ease.getPowInOut(2))
+	  // .to({ alpha: 0, y: 225 }, 100)
+	  // .to({ alpha: 1, y: 250 }, 500, createjs.Ease.getPowInOut(2))
+	  // .to({ x: 250 }, 800, createjs.Ease.getPowInOut(2))
+	  .call(stopRecording);
+
+	createjs.Ticker.setFPS(1);
+	createjs.Ticker.addEventListener('tick', stage);
+	createjs.Ticker.addEventListener('tick', function() {
+	  if (!encoder.hasFinished) {
+		encoder.addFrame(stage.canvas.getContext('2d'));
+	  }
+	});
+}
+</script>
+<body onload="teste()">
+	abcd
+	<canvas width="500" height="500" id="stage"></canvas>
+	<img src="" alt="">
+</body>
+</html>

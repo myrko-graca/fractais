@@ -1,0 +1,505 @@
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="description" content="Criador de fractais">
+		<meta name="keywords" content="fractal,mandelbrot,julia,newton method">
+		<meta name="author" content="Myrko Irazábal da Graça">
+		<script type='text/javascript' src='Alerta.js'></script>
+		<script type='text/javascript' src='Log.js'></script>
+		<script type='text/javascript' src='CoresGradientes.js'></script>
+		<script type='text/javascript' src='MapeamentoGrafico.js'></script>
+		<script type='text/javascript' src='Fractais.js'></script>
+
+		<script type='text/javascript' src='gif/LZWEncoder.js'></script>
+		<script type='text/javascript' src='gif/NeuQuant.js'></script>
+		<script type='text/javascript' src='gif/GIFEncoder.js'></script>
+		<script type='text/javascript' src='gif/b64.js'></script>
+
+		<link rel="shortcut icon" href="icone.png" />
+		<title>Elaborador de Fractais</title>
+	</head>
+	<style>
+		* {
+		 font-size: 100%;
+		 font-family: Arial;
+		}
+		select {
+			background: -webkit-linear-gradient(white, #666);
+			border: 1px solid #ccc;
+			border-radius: 5px;
+			color: black;
+			height: 40px;
+			text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+			-webkit-appearance: none;
+		}
+		input[type='text'], button {
+			height: 40px;
+		}
+		/* Style the tab */
+		.tab {
+		  overflow: hidden;
+		  border: 1px solid #ccc;
+		  background-color: #f1f1f1;
+		}
+		/* Style the buttons inside the tab */
+		.tab button {
+		  background-color: inherit;
+		  float: left;
+		  border: none;
+		  outline: none;
+		  cursor: pointer;
+		  padding: 14px 16px;
+		  transition: 0.3s;
+		  font-size: 17px;
+		}
+		/* Change background color of buttons on hover */
+		.tab button:hover {
+		  background-color: #ddd;
+		}
+		/* Create an active/current tablink class */
+		.tab button.active {
+		  background-color: #ccc;
+		}
+		/* Style the tab content */
+		.tabcontent {
+		  display: none;
+		  padding: 6px 12px;
+		  border: 1px solid #ccc;
+		  border-top: none;
+		}
+		a:link, a:visited {
+		  background-color: #f44336;
+		  color: white;
+		  padding: 14px 25px;
+		  text-align: center; 
+		  text-decoration: none;
+		  display: inline-block;
+		}
+
+		a:hover, a:active {
+		  background-color: red;
+		}
+	</style>
+	<script>
+		var canvas;
+		var mapeamento;
+		var fractal;
+		var coresFractal;
+
+		function URLInfo(){
+			var info = new Object();
+			var url = window.location.toString();
+
+			var posHashtag = url.indexOf("#");
+			if (posHashtag >= 0){
+				url = url.substring(0, posHashtag);
+			}
+			
+			var protocol = url.substring(0, url.indexOf("://") );
+			var paramIndex = url.indexOf("?");
+			var params = new Object();
+			if( paramIndex != -1 ){
+				var paramsStr = url.substr(1 + paramIndex);
+				var v = paramsStr.split("&");
+				for(var i=0;i<v.length;i++){
+					var paramStr = v[i].split("=");
+					params[paramStr[0]]=paramStr[1];
+				}
+			}
+
+			info.getProtocol=function(){
+				return protocol;
+			}
+
+			info.getParams=function(){
+				return params;
+			}
+
+			return info;
+		}
+
+		var log = new Log("debug");
+		function inicializar() {
+			canvas = document.getElementById("canvas");
+			var params = URLInfo().getParams();
+			
+			mapeamento = new MapeamentoGrafico(-2, -2, 2, 2, 600, 600);
+			var maxIteracoes = 100;
+			if (params["tipoFractal"]) {
+				var tipoFractal = decodeURI(params["tipoFractal"]);
+				var parametrosFractal;
+				if (params["parametrosFractal"]) {
+					parametrosFractal = decodeURI(params["parametrosFractal"]);
+				}
+				var maxIteracoes = 100;
+				if (params["maxIteracoes"]) {
+					maxIteracoes = parseInt(decodeURI(params["maxIteracoes"]));
+					document.getElementById("maximoIteracoes").value = maxIteracoes;
+					document.getElementById("descMaximoIteracoes").textContent = maxIteracoes;
+				}
+				if (params["coordenadas"]) {
+					var strCoordenadas = params["coordenadas"];
+					var ac = strCoordenadas.split(",");
+					var strTamanhoTela = params["tamanho"];
+					var tam = strTamanhoTela.split(",");
+					mapeamento = new MapeamentoGrafico(parseFloat(ac[0]), parseFloat(ac[1]), parseFloat(ac[2]), parseFloat(ac[3]), parseInt(tam[0]), parseInt(tam[1]));
+					canvas.width = parseInt(tam[0]);
+					canvas.height = parseInt(tam[1]);
+					document.getElementById("resolucaoCanvas").value = parseInt(tam[0]);
+					document.getElementById("descResolucaoCanvas").textContent = parseInt(tam[0]);
+				}
+				var fnLog = log.debug.contagemTempo("fractal parametrizada");
+				fractal = new Fractais(tipoFractal, mapeamento, maxIteracoes, parametrosFractal);
+				fnLog();
+			} else {
+				var fnLog = log.debug.contagemTempo("fractal padrão");
+				fractal = new Fractais("Mandelbrot", mapeamento, 100);
+				fnLog();
+			}
+
+			if (params["tipoCores"]) {
+				var tipoCores = decodeURI(params["tipoCores"]);
+				if (params["parametrosCores"]) {
+					var parametrosCores = decodeURI(params["parametrosCores"]);
+					coresFractal = new CoresGradientes(tipoCores, parametrosCores);
+				} else {
+					coresFractal = new CoresGradientes(tipoCores);
+				}
+			} else {
+				coresFractal = new CoresGradientes();
+			}
+			coresFractal.colorirPontos(canvas, fractal.getProcessamento());
+			ajustaLink(fractal, coresFractal);
+			
+			document.getElementById("velocidadeMudanca").onchange = function() {
+				document.getElementById("fatorAproximacao").textContent = this.value;
+			}
+			
+			document.getElementById("maximoIteracoes").onchange = function() {
+				var maxIteracoes = parseInt(this.value);
+				document.getElementById("descMaximoIteracoes").textContent = maxIteracoes;
+				desenharFractal(fractal.getTipo(), fractal.getMapeamento(), maxIteracoes, fractal.getParametros());
+			}
+			
+			document.getElementById("resolucaoCanvas").onchange = function() {
+				document.getElementById("descResolucaoCanvas").textContent = this.value;
+				var valor = parseInt(this.value);
+				canvas.width = valor;
+				canvas.height = valor;
+				mapeamento = new MapeamentoGrafico(mapeamento.xmin, mapeamento.ymin, mapeamento.xmax, mapeamento.ymax, valor, valor);
+				desenharFractal(fractal.getTipo(), mapeamento, fractal.getMaxIteracoes(), fractal.getParametros());
+			}
+			
+			document.getElementById("qtdImagensAnimacao").onchange = function() {
+				var qtd = parseInt(this.value);
+				var fator = parseFloat(document.getElementById("fatorAnimacao").value);
+				var dx = (mapeamento.xmax - mapeamento.xmin) * Math.pow(fator, qtd);
+				document.getElementById("descQtdImagensAnimacao").textContent = qtd;
+				document.getElementById("descQtdImagensAnimacao").setAttribute("title",  "xmax - xmin = " + dx);
+			}
+			document.getElementById("fatorAnimacao").onchange = function() {
+				document.getElementById("descFatorAnimacao").textContent = this.value;
+			}
+			document.getElementById("delayAnimacao").onchange = function() {
+				document.getElementById("descDelayAnimacao").textContent = this.value;
+			}
+			
+			function desenharFractal(tipo, mapeamento, maximoIteracoes, parametros) {
+				var aguarde = new alerta("Aguarde...", []);
+				setTimeout(
+					function() {
+						try {
+							var fnLog = log.debug.contagemTempo("desenharFractal: criar");
+							fractal = new Fractais(tipo, mapeamento, maximoIteracoes, parametros);
+							fnLog();
+							var fnLog = log.debug.contagemTempo("desenharFractal: colorir");
+							coresFractal.colorirPontos(canvas, fractal.getProcessamento());
+							fnLog();
+							ajustaLink(fractal, coresFractal);
+							document.getElementById("tabFractal").click();
+						} finally {
+							aguarde.fechar();
+						}
+					}
+				);
+			}
+
+			CoresGradientes.criarComponente(document.getElementById("componenteCores"), 
+				function(cf) {
+					coresFractal = cf;
+					coresFractal.colorirPontos(canvas, fractal.getProcessamento());
+					ajustaLink(fractal, coresFractal);
+					document.getElementById("tabFractal").click();
+				}
+			);
+			
+			function defineComportamentoClickCanvas(definirPonto, potencia) {
+				//Define o comportamento ao clicar
+				if (definirPonto) {
+					canvas.onmousedown = function(e) {
+						if (e.button == 0) {
+							var parametros = potencia + ", [" + getPonto(e) + "]";
+							desenharFractal("Julia", fractal.getMapeamento(), fractal.getMaxIteracoes(), parametros);
+						}
+					}
+				} else {
+					canvas.onmousedown = function(e) {
+						if (e.button == 0) {
+							var velocidadeMudanca = parseFloat(document.getElementById("velocidadeMudanca").value);
+							mapeamento.ajustar(getPonto(e), velocidadeMudanca);
+							desenharFractal(fractal.getTipo(), fractal.getMapeamento(), fractal.getMaxIteracoes(), fractal.getParametros());
+						}
+					}
+				}
+			}
+			defineComportamentoClickCanvas(false);
+			
+			function ajustaLink(fractal, coresFractal) {
+				var linkFractal = document.getElementById("linkFractal");
+				var link = "?" + fractal.getConfiguracao() + "&" + coresFractal.getConfiguracao();
+				linkFractal.setAttribute("href", link);
+				var historico = document.getElementById("LinksHistorico");
+				var currentDatetime = new Date();
+				var formattedDate = currentDatetime.getFullYear() + "-" + (currentDatetime.getMonth() + 1) + "-" + currentDatetime.getDate() + " " + currentDatetime.getHours() + ":" + currentDatetime.getMinutes() + ":" + currentDatetime.getSeconds();
+				historico.innerHTML = "<a target='_blank' href='" + link + "' title='" + link + "' style='width: 200px' onmouseover='motrarImagemHistorico(this)'>" + formattedDate + "</a><br/>" + historico.innerHTML;
+				var guardarHistoricoImagens = document.getElementById("guardarHistoricoImagens");
+				if (guardarHistoricoImagens.checked) {
+					var img = canvas.toDataURL("image/png");
+					historicoImagem[formattedDate] = img;
+					document.getElementById("ImagemHistorico").setAttribute("src", img);
+				}
+			}
+			
+			Fractais.criarComponente(document.getElementById("componenteFractais"),
+				function(tipo, parametros, definirPonto) {
+					var maximoIteracoes = document.getElementById("maximoIteracoes").value;
+					desenharFractal(tipo, mapeamento, maximoIteracoes, parametros);
+					var potencia = 2;
+					if (parametros) {
+						var p = parametros.split(",");
+						potencia = parseInt(p[0]);
+					}
+					defineComportamentoClickCanvas(definirPonto, potencia);
+				}
+			);
+			
+			document.getElementById("tabFractal").click();
+		}
+
+		function copiarCanvas() {
+			function SelectText(element) {
+				var doc = document;
+				if (doc.body.createTextRange) {
+					var range = document.body.createTextRange();
+					range.moveToElementText(element);
+					range.select();
+				} else if (window.getSelection) {
+					var selection = window.getSelection();
+					var range = document.createRange();
+					range.selectNodeContents(element);
+					selection.removeAllRanges();
+					selection.addRange(range);
+				}
+			}
+			var img = document.createElement('img');
+			img.src = canvas.toDataURL()
+			var txt = document.createElement("div");
+			txt.innerHTML = "<br/>" +  document.getElementById("linkFractal").getAttribute("href");
+			var div = document.createElement('div');
+			div.contentEditable = true;
+			div.appendChild(img);
+			div.appendChild(txt);
+			document.body.appendChild(div);
+			// do copy
+			SelectText(div);
+			document.execCommand('Copy');
+			document.body.removeChild(div);
+		}
+		
+		function abrirEmNovaJanela() {
+			document.getElementById("linkFractal").click();
+		}
+		
+		function openTab(evt, tabName) {
+			var i, tabcontent, tablinks;
+			tabcontent = document.getElementsByClassName("tabcontent");
+			for (i = 0; i < tabcontent.length; i++) {
+				tabcontent[i].style.display = "none";
+			}
+			tablinks = document.getElementsByClassName("tablinks");
+			for (i = 0; i < tablinks.length; i++) {
+				tablinks[i].className = tablinks[i].className.replace(" active", "");
+			}
+			document.getElementById(tabName).style.display = "block";
+			evt.currentTarget.className += " active";
+		}
+		
+		var historicoImagem = new Object();
+		function motrarImagemHistorico(elemento) {
+			var dt = elemento.textContent;
+			var imagem = document.getElementById("ImagemHistorico");
+			var img = historicoImagem[dt];
+			if (img) {
+				imagem.style.display = "";
+				imagem.setAttribute("src", historicoImagem[dt]);
+				imagem.onclick = function(e) {
+					var w = e.target.width;
+					if (w == 200) {
+						e.target.width = canvas.width;
+						e.target.style["float"] = "";
+						document.getElementById("LinksHistorico").style.display = "none";
+					} else {
+						e.target.width = 200;
+						e.target.style["float"] = "right";
+						document.getElementById("LinksHistorico").style.display = "";
+					}
+				}
+			} else {
+				imagem.style.display = "none";
+			}
+		}
+		function gerarAnimacao() {
+			const encoder = new GIFEncoder();
+			encoder.setRepeat(0);
+			var delayAnimacao = document.getElementById("delayAnimacao").value;
+			encoder.setDelay(delayAnimacao);
+			encoder.start();
+
+			var qtdImagensAnimacao = document.getElementById("qtdImagensAnimacao").value;
+			var ponto = document.getElementById("pontoAnimacao").value.split(",");
+			ponto = [parseFloat(ponto[0]), parseFloat(ponto[1])];
+			var velocidadeMudanca = parseFloat(document.getElementById("fatorAnimacao").value);
+			
+			var i = 0;
+			function processarAjuste() {
+				i++;
+				if (i < qtdImagensAnimacao) {
+					mapeamento.ajustar(ponto, velocidadeMudanca);
+					fractal = new Fractais(fractal.getTipo(), mapeamento, fractal.getMaxIteracoes(), fractal.getParametros());
+					coresFractal.colorirPontos(canvas, fractal.getProcessamento());
+					encoder.addFrame(canvas.getContext('2d'));
+					var aguarde = new alerta("Aguarde (" + i + ")...", []);
+					setTimeout(
+						function() {
+							try {
+								processarAjuste();
+							} finally {
+								aguarde.fechar();
+							}
+						}
+					);
+				} else {
+					encoder.finish();
+					const data = encoder.stream().getData();
+					document.getElementById("ImagemAnimacao").setAttribute("src", "data:image/gif;base64," + encode64(data));
+				}
+			}
+			var aguarde = new alerta("Aguarde (0)...", []);
+			setTimeout(
+				function() {
+					try {
+						processarAjuste();
+					} finally {
+						aguarde.fechar();
+					}
+				}
+			);
+		}
+		
+		function getPonto(e) {
+			var rect = canvas.getBoundingClientRect();
+			var posx = e.clientX - rect.left;
+			var posy = e.clientY - rect.top;
+			return mapeamento.canvasParaCoordenada(posx, posy);
+		}
+		
+		function marcarPonto(elemento) {
+			document.getElementById("ImagemAnimacao").setAttribute("src", "");
+			if (elemento.checked) {
+				document.getElementById("tabFractal").click();
+				canvas.onmousedownOld = canvas.onmousedown;
+				canvas.onmousedown = function(e) {
+					if (e.button == 0) {
+						document.getElementById("pontoAnimacao").value = getPonto(e);
+						canvas.onmousedown = canvas.onmousedownOld;
+						document.getElementById("tabAnimacao").click();
+					}
+					
+				}
+			} else {
+				if (canvas.onmousedownOld) {
+					canvas.onmousedown = canvas.onmousedownOld;
+				}
+			}
+		}
+</script>
+	<body onload="inicializar()">
+		<div class="tab">
+			<button id="tabFractal" class="tablinks" onclick="openTab(event, 'Fractal')">Fractal</button>
+			<button class="tablinks" onclick="openTab(event, 'Config')">Configurações</button>
+			<button id="tabAnimacao" class="tablinks" onclick="openTab(event, 'Animacao')">Animação</button>
+			<button class="tablinks" onclick="openTab(event, 'Historico')">Histórico</button>
+			<br><input id="guardarHistoricoImagens" type="checkbox"><span style="font-size: 70%">armazenar histórico de imagens</span>
+		</div>
+		<table id="Fractal" class="tabcontent">
+			<tr>
+				<td>
+					<canvas id="canvas" width="600" height="600" style="border:1px solid #000000;"></canvas>
+					<br/><button onclick="copiarCanvas()">Copiar imagem</button>
+					<button onclick="window.location.reload(false); ">Reiniciar</button>
+					<button onclick="abrirEmNovaJanela()">Abrir em nova janela</button>
+				</td>
+			</tr>
+		</table>
+		<div id="Config" class="tabcontent">
+			<table>
+				<tr>
+					<td>
+						<table style="border-spacing: 10px; width: 100%">
+							<tr>
+								<td>Resolução do canvas</td><td><input id="resolucaoCanvas" type="range" step="10" min="400" max="3000" value="600" style="width:100%"></td><td><span id="descResolucaoCanvas">600</span></td>
+							</tr>
+							<tr>
+								<td>Máximo de iterações</td><td><input id="maximoIteracoes" type="range" step="10" min="100" max="3000" value="100" style="width:100%"></td><td><span id="descMaximoIteracoes">100</span></td>
+							</tr>
+							<tr>
+								<td>Fator de aproximação</td><td><input id="velocidadeMudanca" type="range" step="0.1" min="0.1" max="3.0" value="0.6" style="width:100%"></td><td><span id="fatorAproximacao">0.6</span></td>
+							</tr>
+						</table>
+					</td>
+				</tr>
+			</table>
+			<fieldset>
+				<legend>Tipos de fractais</legend>
+				<div id="componenteFractais"></div>
+			</fieldset>
+			<fieldset>
+				<legend>Esquema de cores</legend>
+				<div id="componenteCores"></div>
+			</fieldset>
+			<br/><a target="_blank" href="" id="linkFractal" style="display:none;">Abrir em nova janela</a><br/>
+		</div>
+		<div id="Animacao" class="tabcontent">
+			<table style="border-spacing: 10px; width: 100%">
+				<tr>
+					<td>Fator de aproximação</td><td><input id="fatorAnimacao" type="range" step="0.1" min="0.1" max="3.0" value="0.9" style="width:100%"></td><td><span id="descFatorAnimacao">0.9</span></td>
+				</tr>
+				<tr>
+					<td>Quantidade de imagens</td><td><input id="qtdImagensAnimacao" type="range" step="1" min="2" max="200" value="5" style="width:100%"></td><td><span id="descQtdImagensAnimacao">5</span></td>
+				</tr>
+				<tr>
+					<td>Delay frames (ms)</td><td><input id="delayAnimacao" type="range" step="50" min="50" max="1000" value="200" style="width:100%"></td><td><span id="descDelayAnimacao">200</span></td>
+				</tr>
+				<tr>
+					<td>Ponto</td><td><input id="pontoAnimacao" type="text" size="40"></td><td>Marcar ponto: <input type="checkbox" onclick="marcarPonto(this)"></input></td>
+				</tr>
+			</table>
+			<button onclick="gerarAnimacao()">Gerar animação</button>
+			<br/><img id="ImagemAnimacao"></img>
+		</div>
+		<div id="Historico" class="tabcontent">
+			<img id="ImagemHistorico" width="200" style="float:right;border:1px solid #000000;"></img> 
+			<div id="LinksHistorico"></div>
+		</div>
+	</body>
+</html>
